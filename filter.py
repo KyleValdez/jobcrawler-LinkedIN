@@ -1,7 +1,6 @@
-import json
-import os
-from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeoutError
 
+
+"""
 def filter_active_jobs(input_file="linkedin_jobs.json", output_file="active_linkedin_jobs.json"):
     if not os.path.exists(input_file):
         print(f"File not found: {input_file}")
@@ -56,3 +55,64 @@ def filter_active_jobs(input_file="linkedin_jobs.json", output_file="active_link
 
 # Run the function
 filter_active_jobs()
+"""
+
+from playwright.sync_api import sync_playwright
+import json
+import time
+import os
+
+def extract_job_titles_from_urls(urls, auth_file="linkedin_auth.json", headless=True, delay=1.5):
+    job_data = []
+    with sync_playwright() as p:
+        browser = p.chromium.launch(headless=headless)
+        context = browser.new_context(storage_state=auth_file)
+        page = context.new_page()
+
+        for url in urls:
+            try:
+                print(f"→ Visiting {url}")
+                page.goto(url, timeout=60000)
+                page.wait_for_selector("h1.t-24.t-bold", timeout=10000)
+                el = page.query_selector("h1.t-24.t-bold")
+                title = el.inner_text().strip() if el else "Title not found"
+            except Exception as e:
+                title = f"Error: {e!s}"
+            job_data.append({"url": url, "title": title})
+            time.sleep(delay)
+
+        browser.close()
+    return job_data
+
+if __name__ == "__main__":
+    # 1) Load all URLs from your job_links JSON
+    links_path = "linkedin_jobs.json"
+    if not os.path.exists(links_path):
+        raise FileNotFoundError(f"{links_path} not found—run your scraper first.")
+    with open(links_path, "r", encoding="utf-8") as f:
+        job_links = json.load(f).get("job_links", [])
+
+    # 2) Load existing titles (if any)
+    titles_path = "linkedin_job_titles.json"
+    if os.path.exists(titles_path):
+        with open(titles_path, "r", encoding="utf-8") as f:
+            existing = json.load(f)
+    else:
+        existing = []
+
+    # Build a set of URLs we've already scraped
+    scraped_urls = { entry["url"] for entry in existing }
+
+    # 3) Filter to only the URLs that are new
+    to_scrape = [url for url in job_links if url not in scraped_urls]
+    print(f"Found {len(to_scrape)} new URL(s) to scrape.")
+
+    # 4) Scrape only the new ones
+    new_entries = extract_job_titles_from_urls(to_scrape, headless=True)
+
+    # 5) Combine old + new, then save
+    combined = existing + new_entries
+    with open(titles_path, "w", encoding="utf-8") as f:
+        json.dump(combined, f, indent=4, ensure_ascii=False)
+
+    print(f"Total titles stored: {len(combined)}")

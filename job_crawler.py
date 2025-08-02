@@ -52,7 +52,7 @@ def scrape_linkedin_jobs_with_login():
         context = browser.new_context(storage_state="linkedin_auth.json")
         page = context.new_page()
 
-        page.goto("https://www.linkedin.com/jobs/search/?distance=25&keywords=software%20developer", timeout=60000)
+        page.goto("https://www.linkedin.com/jobs/search/?distance=25&keywords=software%20engineer", timeout=60000)
 
         # More robust: wait for any job card to appear
         page.wait_for_selector("a.job-card-container__link", timeout=35000)
@@ -90,8 +90,10 @@ def scrape_linkedin_jobs_with_login():
 
     existing_links = load_existing_links("linkedin_jobs.json")
 
+
     # Combine and deduplicate
     all_links = list(OrderedDict.fromkeys(existing_links + job_links))
+    
 
     print(f"Found {len(job_links)} job links.")
 
